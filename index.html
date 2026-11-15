@@ -96,7 +96,9 @@ button,input{font:inherit;color:inherit}
 .list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:12px;border:2px solid transparent}
 .item.playing{border-color:var(--fill-top);background:var(--bg)}
-.item .play{flex:1;min-width:0;text-align:left;background:none;border:0;cursor:pointer;padding:4px}
+.item .play{flex:1;min-width:0;text-align:left;padding:4px;color:inherit;text-decoration:none}
+.item:hover{background:var(--bg)}
+.open-all{display:block;text-align:center;text-decoration:none;padding:14px 0}
 .item .name{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
 .item .src{font-size:.8rem;color:var(--muted)}
 .item .del{background:none;border:0;color:var(--muted);cursor:pointer;font-size:1.2rem;padding:4px 8px;border-radius:8px}
@@ -158,7 +160,7 @@ footer{text-align:center;padding:0 20px 24px}
 
   <section class="music" id="musicSection" aria-labelledby="m">
     <h2 id="m">เพลงเติมพลัง</h2>
-    <p class="hint" id="musicHint">กดชื่อเพลงเพื่อฟังได้เลย</p>
+    <p class="hint" id="musicHint">กดชื่อเพลงเพื่อเปิดฟังในแท็บใหม่ หรือเปิดทั้งเพลย์ลิสต์ใน YouTube</p>
     <div class="add" id="addBox" hidden>
       <input class="field" id="url" type="url" inputmode="url" placeholder="https://www.youtube.com/watch?v=..." aria-label="ลิงก์เพลง">
       <input class="field" id="name" type="text" placeholder="ชื่อเพลง (ไม่ใส่ก็ได้)" aria-label="ชื่อเพลง">
@@ -168,8 +170,7 @@ footer{text-align:center;padding:0 20px 24px}
       </div>
       <p class="error" id="err" role="alert"></p>
     </div>
-    <div class="player" id="player"></div>
-    <p class="now" id="now"></p>
+    <a class="btn fill open-all" id="openAll" target="_blank" rel="noopener" hidden>เปิดเพลย์ลิสต์ทั้งหมดใน YouTube</a>
     <ul class="list" id="list"></ul>
   </section>
 </main>
@@ -230,8 +231,8 @@ const OWNER_UID = "bcZVORV2wJMdCAvZ565EaWxijVq1";
     $('ownerControls').hidden = !on;
     $('addBox').hidden = !on;
     $('musicHint').textContent = on
-      ? 'วางลิงก์ YouTube, SoundCloud, Spotify หรือไฟล์ .mp3 เพลงที่เพิ่มจากลิงก์ ทุกคนที่เข้าเว็บจะฟังได้ด้วย'
-      : 'กดชื่อเพลงเพื่อฟังได้เลย';
+      ? 'วางลิงก์ YouTube, SoundCloud, Spotify หรือไฟล์ .mp3 เพลงจะเข้าเพลย์ลิสต์ทันที และทุกคนที่เข้าเว็บจะเห็นด้วย'
+      : 'กดชื่อเพลงเพื่อเปิดฟังในแท็บใหม่ หรือเปิดทั้งเพลย์ลิสต์ใน YouTube';
     renderList();
     if (!on){ $('auto').checked = false; clearInterval(timer); }
   }
@@ -264,132 +265,71 @@ const OWNER_UID = "bcZVORV2wJMdCAvZ565EaWxijVq1";
   });
 
   /* ---------- เพลง ---------- */
-  let playlist = [], playingId = null, localFiles = [];
+  let playlist = [], localFiles = [];
   function savePlaylist(){
     if (useFirebase) db.ref('playlist').set(playlist);
-    else save('playlist', playlist);
+    else { save('playlist', playlist); renderList(); }
   }
   function parseLink(raw){
-    let u; try { u = new URL(raw.trim()); } catch(e){ return null; }
+    let u; try { u = new URL(String(raw).trim()); } catch(e){ return null; }
     const host = u.hostname.replace(/^www\.|^m\.|^music\./, '');
     if (host === 'youtube.com' || host === 'youtu.be'){
       let id = null;
       if (host === 'youtu.be') id = u.pathname.slice(1);
       else if (u.searchParams.get('v')) id = u.searchParams.get('v');
       else { const m = u.pathname.match(/\/(shorts|embed|live)\/([\w-]+)/); if (m) id = m[2]; }
-      const listId = u.searchParams.get('list');
-      if (id) return {kind:'YouTube', yt:{videoId:id}, embed:'https://www.youtube.com/embed/' + id + '?autoplay=1&rel=0&playsinline=1', h:220};
-      if (listId) return {kind:'YouTube', yt:{list:listId}, embed:'https://www.youtube.com/embed/videoseries?list=' + listId + '&autoplay=1&playsinline=1', h:220};
+      if (id && /^[\w-]{6,20}$/.test(id)) return {kind:'YouTube', videoId:id};
+      if (u.searchParams.get('list')) return {kind:'YouTube', list:u.searchParams.get('list')};
       return null;
     }
-    if (host === 'soundcloud.com' || host === 'on.soundcloud.com')
-      return {kind:'SoundCloud', embed:'https://w.soundcloud.com/player/?url=' + encodeURIComponent(u.href) + '&auto_play=true&visual=false', h:166};
-    if (host === 'open.spotify.com'){
-      const m = u.pathname.match(/(track|album|playlist|episode|show)\/([A-Za-z0-9]+)/);
-      if (m) return {kind:'Spotify', embed:'https://open.spotify.com/embed/' + m[1] + '/' + m[2], h:(m[1]==='track'||m[1]==='episode') ? 152 : 352};
-      return null;
-    }
-    if (/\.(mp3|m4a|ogg|wav|aac|flac|opus)$/i.test(u.pathname)) return {kind:'ไฟล์เสียง', audio:u.href};
+    if (host === 'soundcloud.com' || host === 'on.soundcloud.com') return {kind:'SoundCloud'};
+    if (host === 'open.spotify.com' && /(track|album|playlist|episode|show)\//.test(u.pathname)) return {kind:'Spotify'};
+    if (/\.(mp3|m4a|ogg|wav|aac|flac|opus)$/i.test(u.pathname)) return {kind:'ไฟล์เสียง'};
     return null;
   }
-  // ตัวเล่น YouTube แบบรู้สถานะ: บอกสาเหตุเมื่อเล่นไม่ได้ และเล่นเพลงถัดไปเมื่อจบ
-  let ytReady = null;
-  function loadYT(){
-    if (ytReady) return ytReady;
-    ytReady = new Promise(res => {
-      if (window.YT && window.YT.Player) return res();
-      window.onYouTubeIframeAPIReady = res;
-      const s = document.createElement('script');
-      s.src = 'https://www.youtube.com/iframe_api';
-      s.onerror = () => res();
-      document.head.appendChild(s);
-      setTimeout(res, 6000);
-    });
-    return ytReady;
+  const ytId = item => { const p = item.url ? parseLink(item.url) : null; return p && p.videoId; };
+  function ytListUrl(ids){
+    ids = ids.slice(0, 50);
+    if (!ids.length) return null;
+    if (ids.length === 1) return 'https://www.youtube.com/watch?v=' + ids[0];
+    return 'https://www.youtube.com/watch_videos?video_ids=' + ids.join(',');
   }
-  function ytErrorText(code){
-    if (code === 101 || code === 150) return 'เจ้าของเพลงนี้ไม่อนุญาตให้เล่นนอก YouTube ลองหาเวอร์ชันอื่น เช่น Lyric video, Audio หรือช่องที่ลงท้ายว่า Topic';
-    if (code === 100) return 'วิดีโอนี้ถูกลบหรือตั้งเป็นส่วนตัว ลองใช้ลิงก์อื่น';
-    if (code === 2) return 'ลิงก์ YouTube ไม่ถูกต้อง ลองคัดลอกลิงก์ใหม่';
-    return 'YouTube เล่นเพลงนี้ไม่ได้ (รหัส ' + code + ') ลองกดเล่นอีกครั้งหรือใช้ลิงก์อื่น';
-  }
-  function playNext(item){
-    const all = playlist.concat(localFiles);
-    const i = all.findIndex(x => x.id === item.id);
-    if (i > -1 && i < all.length - 1 && playingId === item.id) play(all[i + 1]);
-  }
-  function playYouTube(item, p){
-    const holder = document.createElement('div');
-    $('player').appendChild(holder);
-    loadYT().then(() => {
-      if (playingId !== item.id) return;
-      if (!(window.YT && window.YT.Player)){
-        const f = document.createElement('iframe');
-        f.src = p.embed; f.height = p.h; f.title = item.name;
-        f.allow = 'autoplay; encrypted-media; fullscreen; picture-in-picture';
-        holder.replaceWith(f); return;
-      }
-      const vars = {autoplay:1, playsinline:1, rel:0};
-      if (p.yt.list){ vars.listType = 'playlist'; vars.list = p.yt.list; }
-      new YT.Player(holder, {
-        height: String(p.h), width: '100%',
-        videoId: p.yt.videoId || undefined,
-        playerVars: vars,
-        events: {
-          onReady: e => e.target.playVideo(),
-          onStateChange: e => { if (e.data === YT.PlayerState.ENDED && !p.yt.list) playNext(item); },
-          onError: e => { $('err').textContent = ytErrorText(e.data); }
-        }
-      });
-    });
-  }
-
-  function play(item){
-    playingId = item.id; $('player').innerHTML = ''; $('err').textContent = '';
-    const p = item.blob ? {audio:item.blob} : parseLink(item.url);
-    if (!p){ $('err').textContent = 'เปิดลิงก์นี้ไม่ได้ ลองลบแล้วเพิ่มใหม่'; return; }
-    if (p.audio){
-      const a = document.createElement('audio');
-      a.controls = true; a.autoplay = true; a.src = p.audio;
-      a.addEventListener('error', () => { $('err').textContent = 'เล่นไฟล์นี้ไม่ได้ ตรวจว่าลิงก์เป็นไฟล์เสียงที่เปิดได้จริง'; });
-      a.addEventListener('ended', () => playNext(item));
-      $('player').appendChild(a);
-    } else if (p.yt){
-      playYouTube(item, p);
-    } else {
-      const f = document.createElement('iframe');
-      f.src = p.embed; f.height = p.h; f.title = item.name;
-      f.allow = 'autoplay; encrypted-media; clipboard-write; fullscreen; picture-in-picture';
-      $('player').appendChild(f);
+  // กดเพลง YouTube แล้วเปิดเพลย์ลิสต์โดยเริ่มจากเพลงนั้น ต่อด้วยเพลงที่เหลือ
+  function linkFor(item){
+    if (item.blob) return item.blob;
+    const id = ytId(item);
+    if (id){
+      const ids = playlist.map(ytId).filter(Boolean);
+      const i = Math.max(0, ids.indexOf(id));
+      return ytListUrl(ids.slice(i).concat(ids.slice(0, i)));
     }
-    $('now').textContent = 'กำลังเล่น: ' + item.name;
-    renderList();
+    return item.url;
   }
   function renderList(){
     const list = $('list'); list.innerHTML = '';
     const all = playlist.concat(localFiles);
+    const allUrl = ytListUrl(playlist.map(ytId).filter(Boolean));
+    $('openAll').hidden = !allUrl;
+    if (allUrl) $('openAll').href = allUrl;
     if (!all.length){
       const li = document.createElement('li'); li.className = 'empty';
       li.textContent = isOwner ? 'ยังไม่มีเพลง ลองวางลิงก์เพลงโปรดด้านบนดูนะ' : 'ยังไม่มีเพลงในตอนนี้';
       list.appendChild(li); return;
     }
     all.forEach(item => {
-      const li = document.createElement('li');
-      li.className = 'item' + (item.id === playingId ? ' playing' : '');
-      const b = document.createElement('button'); b.className = 'play';
-      b.innerHTML = '<span class="name"></span><span class="src"></span>';
-      b.querySelector('.name').textContent = (item.id === playingId ? '▶ ' : '') + item.name;
-      b.querySelector('.src').textContent = item.kind;
-      b.addEventListener('click', () => play(item));
+      const li = document.createElement('li'); li.className = 'item';
+      const a = document.createElement('a'); a.className = 'play';
+      a.href = linkFor(item); a.target = '_blank'; a.rel = 'noopener';
+      a.innerHTML = '<span class="name"></span><span class="src"></span>';
+      a.querySelector('.name').textContent = item.name;
+      a.querySelector('.src').textContent = item.blob ? 'ไฟล์ในเครื่อง (ไม่บันทึก)' : 'เปิดใน ' + item.kind + ' แท็บใหม่';
       const del = document.createElement('button'); del.className = 'del'; del.textContent = '×';
       del.setAttribute('aria-label', 'ลบ ' + item.name);
       del.addEventListener('click', () => {
-        if (item.blob) localFiles = localFiles.filter(x => x.id !== item.id);
+        if (item.blob){ localFiles = localFiles.filter(x => x.id !== item.id); renderList(); }
         else { playlist = playlist.filter(x => x.id !== item.id); savePlaylist(); }
-        if (playingId === item.id){ playingId = null; $('player').innerHTML = ''; $('now').textContent = ''; }
-        renderList();
       });
-      li.append(b); if (isOwner || item.blob) li.append(del); list.appendChild(li);
+      li.append(a); if (isOwner || item.blob) li.append(del); list.appendChild(li);
     });
   }
   function addFromInput(){
@@ -400,15 +340,14 @@ const OWNER_UID = "bcZVORV2wJMdCAvZ565EaWxijVq1";
     const item = { id: Date.now().toString(36), url: raw, kind: p.kind,
       name: $('name').value.trim() || ('เพลงจาก ' + p.kind + ' #' + (playlist.length + 1)) };
     playlist.push(item); savePlaylist();
-    $('url').value = ''; $('name').value = '';
-    play(item);
+    $('url').value = ''; $('name').value = ''; $('err').textContent = '';
   }
   $('add').addEventListener('click', addFromInput);
   $('url').addEventListener('keydown', e => { if (e.key === 'Enter') addFromInput(); });
   $('file').addEventListener('change', e => {
     const f = e.target.files[0]; if (!f) return;
-    const item = { id: Date.now().toString(36), blob: URL.createObjectURL(f), kind: 'ไฟล์ในเครื่อง (ไม่บันทึก)', name: f.name.replace(/\.[^.]+$/, '') };
-    localFiles.push(item); e.target.value = ''; play(item);
+    localFiles.push({ id: Date.now().toString(36), blob: URL.createObjectURL(f), kind: 'ไฟล์ในเครื่อง', name: f.name.replace(/\.[^.]+$/, '') });
+    e.target.value = ''; renderList();
   });
 
   /* ---------- เริ่มทำงาน ---------- */
