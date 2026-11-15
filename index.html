@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>หัวใจพลังใจ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500;600&family=IBM+Plex+Sans+Thai:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F3ECF1; --surface:#FBF8FA; --ink:#3A2436; --muted:#7A6474;
+  --line:#E2D2DD; --fill-top:#FF8FA3; --fill-deep:#E0455F; --empty:rgba(255,255,255,.6);
+  --danger:#B8364F; --focus:#5B4FD9; color-scheme: light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1E1520; --surface:#2A1E2C; --ink:#F6E9F1; --muted:#C2A9BA;
+    --line:#48344A; --fill-top:#FF8FA3; --fill-deep:#D93A57; --empty:rgba(255,255,255,.06);
+    --danger:#FF8FA3; --focus:#A79CFF; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1E1520; --surface:#2A1E2C; --ink:#F6E9F1; --muted:#C2A9BA;
+  --line:#48344A; --fill-top:#FF8FA3; --fill-deep:#D93A57; --empty:rgba(255,255,255,.06);
+  --danger:#FF8FA3; --focus:#A79CFF; color-scheme: dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"IBM Plex Sans Thai","Sarabun","Noto Sans Thai",system-ui,sans-serif;line-height:1.6}
+main{max-width:960px;margin:0 auto;padding:28px 20px 48px;display:grid;gap:32px}
+@media (min-width:820px){main{grid-template-columns:1fr 1fr;align-items:start;padding-top:56px}}
+h1,h2{font-family:"Mitr","IBM Plex Sans Thai",sans-serif;font-weight:500;margin:0;line-height:1.25}
+h1{font-size:clamp(1.9rem,6vw,2.6rem)}
+h2{font-size:1.3rem}
+p{margin:0}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+[hidden]{display:none !important}
+
+.banner{grid-column:1/-1;background:var(--surface);border:2px dashed var(--line);border-radius:14px;
+  padding:10px 14px;font-size:.9rem;color:var(--muted)}
+.uidbox{grid-column:1/-1;background:var(--surface);border:2px solid var(--fill-deep);border-radius:14px;padding:14px;font-size:.95rem}
+.uidbox code{display:block;margin-top:6px;padding:8px;border-radius:8px;background:var(--bg);word-break:break-all;user-select:all}
+
+/* Heart */
+.energy{display:grid;gap:18px;justify-items:center;text-align:center}
+.heart-wrap{position:relative;width:min(300px,78vw)}
+.heart-wrap svg{display:block;width:100%;height:auto;overflow:visible}
+.heart-bg{fill:var(--empty)}
+.heart-outline{fill:none;stroke:var(--ink);stroke-width:2.6;stroke-linejoin:round}
+#level{transition:transform .7s cubic-bezier(.3,1.25,.5,1)}
+.wave{animation:drift 3.2s linear infinite}
+@keyframes drift{to{transform:translateX(-100px)}}
+.full .heart-outline{stroke:var(--fill-deep)}
+.full svg{animation:beat 1.2s ease-in-out infinite}
+@keyframes beat{0%,100%{transform:scale(1)}15%{transform:scale(1.06)}30%{transform:scale(1)}45%{transform:scale(1.04)}}
+.pct{position:absolute;left:0;right:0;top:34%;font-family:"Mitr",sans-serif;
+  font-size:clamp(2.4rem,11vw,3.4rem);font-weight:600;color:var(--ink);text-shadow:0 0 14px var(--surface)}
+.pct small{font-size:.45em;font-weight:500}
+.mood{min-height:1.6em;color:var(--muted)}
+
+.controls{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;width:100%;max-width:360px}
+.btn{border:2px solid var(--ink);background:var(--surface);border-radius:14px;padding:10px 0;cursor:pointer;
+  font-family:"Mitr",sans-serif;font-weight:500;transition:transform .1s}
+.btn:active{transform:scale(.95)}
+.btn.fill{background:var(--fill-top);border-color:var(--fill-deep);color:#3A0D18}
+.btn.big{grid-column:span 2;padding:14px 0;font-size:1.1rem}
+.row{display:flex;gap:16px;align-items:center;justify-content:center;flex-wrap:wrap;color:var(--muted);font-size:.95rem}
+.toggle{display:flex;gap:8px;align-items:center;cursor:pointer}
+.toggle input{width:20px;height:20px;accent-color:var(--fill-deep)}
+.link{background:none;border:0;color:var(--muted);text-decoration:underline;cursor:pointer;padding:4px}
+
+/* Music */
+.music{display:grid;gap:16px;background:var(--surface);border:2px solid var(--line);border-radius:24px;padding:22px}
+.hint{color:var(--muted);font-size:.9rem}
+.add{display:grid;gap:8px}
+.field{width:100%;padding:12px 14px;border:2px solid var(--line);border-radius:12px;background:var(--bg)}
+.field:focus{border-color:var(--focus);outline:none}
+.add-actions{display:flex;gap:8px}
+.add-actions .btn{flex:1}
+.file-btn{position:relative;overflow:hidden;text-align:center}
+.file-btn input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.error{color:var(--danger);font-size:.9rem;min-height:1.4em}
+.player{border-radius:16px;overflow:hidden;background:var(--bg)}
+.player iframe{display:block;width:100%;border:0}
+.player audio{display:block;width:100%;padding:10px}
+.now{font-size:.9rem;color:var(--muted)}
+.list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:12px;border:2px solid transparent}
+.item.playing{border-color:var(--fill-top);background:var(--bg)}
+.item .play{flex:1;min-width:0;text-align:left;background:none;border:0;cursor:pointer;padding:4px}
+.item .name{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.item .src{font-size:.8rem;color:var(--muted)}
+.item .del{background:none;border:0;color:var(--muted);cursor:pointer;font-size:1.2rem;padding:4px 8px;border-radius:8px}
+.item .del:hover{color:var(--danger)}
+.empty{color:var(--muted);font-size:.95rem;padding:8px 0}
+footer{text-align:center;padding:0 20px 24px}
+
+@media (prefers-reduced-motion: reduce){
+  .wave,.full svg{animation:none}#level{transition:none}
+}
+</style>
+</head>
+<body>
+<main id="main">
+  <p class="banner" id="demo" hidden>โหมดทดลอง: ยังไม่ได้เชื่อม Firebase ค่าพลังใจจะเก็บไว้แค่ในเครื่องนี้</p>
+  <div class="uidbox" id="uidbox" hidden>
+    บัญชีนี้ยังไม่ได้ตั้งเป็นเจ้าของหัวใจ ถ้านี่คือบัญชีของคุณ ให้คัดลอก UID ด้านล่างไปใส่ใน <b>OWNER_UID</b> ในโค้ด และใน Rules ของ Firebase
+    <code id="uid"></code>
+  </div>
+
+  <section class="energy" aria-labelledby="t">
+    <h1 id="t">หัวใจพลังใจ</h1>
+    <div class="heart-wrap" id="heartWrap">
+      <svg viewBox="0 0 100 92" role="img" aria-labelledby="pctText">
+        <defs>
+          <clipPath id="heartClip"><path id="heartPath" d="M50 88 C20 66 4 48 4 28 C4 14 15 4 28 4 C38 4 45 9 50 17 C55 9 62 4 72 4 C85 4 96 14 96 28 C96 48 80 66 50 88Z"/></clipPath>
+          <linearGradient id="fillGrad" x1="0" y1="1" x2="0" y2="0">
+            <stop offset="0" stop-color="var(--fill-deep)"/>
+            <stop offset="1" stop-color="var(--fill-top)"/>
+          </linearGradient>
+        </defs>
+        <path class="heart-bg" d="M50 88 C20 66 4 48 4 28 C4 14 15 4 28 4 C38 4 45 9 50 17 C55 9 62 4 72 4 C85 4 96 14 96 28 C96 48 80 66 50 88Z"/>
+        <g clip-path="url(#heartClip)">
+          <g id="level" style="transform:translateY(90px)">
+            <g class="wave"><path id="wavePath" fill="url(#fillGrad)"/></g>
+          </g>
+        </g>
+        <path class="heart-outline" d="M50 88 C20 66 4 48 4 28 C4 14 15 4 28 4 C38 4 45 9 50 17 C55 9 62 4 72 4 C85 4 96 14 96 28 C96 48 80 66 50 88Z"/>
+      </svg>
+      <div class="pct" aria-live="polite"><span id="pctText">0<small>%</small></span></div>
+    </div>
+    <p class="mood" id="mood">กำลังโหลด…</p>
+
+    <div id="ownerControls" hidden style="display:grid;gap:16px;justify-items:center;width:100%">
+      <div class="controls">
+        <button class="btn" data-step="-10" aria-label="ลดพลังใจ 10 เปอร์เซ็นต์">−10</button>
+        <button class="btn" data-step="-1" aria-label="ลดพลังใจ 1 เปอร์เซ็นต์">−1</button>
+        <button class="btn" data-step="1" aria-label="เติมพลังใจ 1 เปอร์เซ็นต์">+1</button>
+        <button class="btn" data-step="10" aria-label="เติมพลังใจ 10 เปอร์เซ็นต์">+10</button>
+        <button class="btn big" data-step="-5">ลดพลังใจ</button>
+        <button class="btn big fill" data-step="5">เติมพลังใจ</button>
+      </div>
+      <div class="row">
+        <label class="toggle"><input type="checkbox" id="auto"> เติมเองไปเรื่อยๆ (+1% ทุก 2 วินาที)</label>
+        <button class="link" id="reset">เริ่มใหม่</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="music" id="musicSection" aria-labelledby="m">
+    <h2 id="m">เพลงเติมพลัง</h2>
+    <p class="hint" id="musicHint">กดชื่อเพลงเพื่อฟังได้เลย</p>
+    <div class="add" id="addBox" hidden>
+      <input class="field" id="url" type="url" inputmode="url" placeholder="https://www.youtube.com/watch?v=..." aria-label="ลิงก์เพลง">
+      <input class="field" id="name" type="text" placeholder="ชื่อเพลง (ไม่ใส่ก็ได้)" aria-label="ชื่อเพลง">
+      <div class="add-actions">
+        <button class="btn fill" id="add">เพิ่มเพลง</button>
+        <label class="btn file-btn">เลือกไฟล์ในเครื่อง<input type="file" id="file" accept="audio/*"></label>
+      </div>
+      <p class="error" id="err" role="alert"></p>
+    </div>
+    <div class="player" id="player"></div>
+    <p class="now" id="now"></p>
+    <ul class="list" id="list"></ul>
+  </section>
+</main>
+
+<footer>
+  <button class="link" id="loginBtn" hidden>เข้าสู่ระบบสำหรับเจ้าของ</button>
+  <button class="link" id="logoutBtn" hidden>ออกจากระบบ</button>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.12.2/firebase-app-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.12.2/firebase-auth-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.12.2/firebase-database-compat.js"></script>
+<script>
+/* ===== ขั้นตอนที่ 2: วางค่า config จาก Firebase ตรงนี้ ===== */
+const firebaseConfig = {
+  apiKey: "AIzaSyCry5v6mMqkjzKgeqloxSRdOF9T6HSUFrs",
+  authDomain: "heartenergy-a2b8e.firebaseapp.com",
+  databaseURL: "https://heartenergy-a2b8e-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "heartenergy-a2b8e",
+  storageBucket: "heartenergy-a2b8e.firebasestorage.app",
+  messagingSenderId: "297967192302",
+  appId: "1:297967192302:web:b795fa38f5568a95ab0bff"
+};
+/* ===== ขั้นตอนที่ 4: วาง UID ของคุณตรงนี้ ===== */
+const OWNER_UID = "";
+
+(function(){
+  const $ = id => document.getElementById(id);
+  const load = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch(e){ return d; } };
+  const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} };
+  const clamp = v => Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
+
+  // คลื่นด้านบนของของเหลว
+  let d = 'M0 0 Q6.25 -3 12.5 0';
+  for (let x = 25; x <= 200; x += 12.5) d += ' T' + x + ' 0';
+  $('wavePath').setAttribute('d', d + ' V100 H0 Z');
+
+  const useFirebase = !!firebaseConfig.apiKey && typeof firebase !== 'undefined';
+  let energy = 0, isOwner = false, db = null, auth = null;
+
+  /* ---------- แสดงผล ---------- */
+  function moodText(v){
+    if (v === 0) return 'พลังใจหมดแล้ว ค่อยๆ เติมกันนะ';
+    if (v < 30) return 'ค่อยๆ เติมไป ไม่ต้องรีบ';
+    if (v < 60) return 'กำลังดีขึ้นเรื่อยๆ';
+    if (v < 90) return 'พลังใจมาเยอะแล้ว';
+    if (v < 100) return 'อีกนิดเดียวจะเต็มหัวใจ';
+    return 'เต็มหัวใจ! วันนี้สู้ได้ทุกเรื่อง';
+  }
+  function render(){
+    $('level').style.transform = 'translateY(' + (90 - energy * 0.89) + 'px)';
+    $('pctText').innerHTML = energy + '<small>%</small>';
+    $('mood').textContent = moodText(energy);
+    $('heartWrap').classList.toggle('full', energy === 100);
+  }
+  function setOwnerUI(on){
+    isOwner = on;
+    $('ownerControls').hidden = !on;
+    $('addBox').hidden = !on;
+    $('musicHint').textContent = on
+      ? 'วางลิงก์ YouTube, SoundCloud, Spotify หรือไฟล์ .mp3 เพลงที่เพิ่มจากลิงก์ ทุกคนที่เข้าเว็บจะฟังได้ด้วย'
+      : 'กดชื่อเพลงเพื่อฟังได้เลย';
+    renderList();
+    if (!on){ $('auto').checked = false; clearInterval(timer); }
+  }
+
+  /* ---------- เปลี่ยนค่าพลังใจ ---------- */
+  function change(step){
+    if (!isOwner) return;
+    if (useFirebase){
+      db.ref('energy').transaction(cur => clamp((cur || 0) + step));
+    } else {
+      energy = clamp(energy + step); save('energy', energy); render();
+    }
+  }
+  function setTo(v){
+    if (!isOwner) return;
+    if (useFirebase) db.ref('energy').set(clamp(v));
+    else { energy = clamp(v); save('energy', energy); render(); }
+  }
+  document.querySelectorAll('[data-step]').forEach(b =>
+    b.addEventListener('click', () => change(Number(b.dataset.step))));
+  $('reset').addEventListener('click', () => setTo(0));
+
+  let timer = null;
+  $('auto').addEventListener('change', () => {
+    clearInterval(timer);
+    if ($('auto').checked) timer = setInterval(() => {
+      if (energy >= 100){ $('auto').checked = false; clearInterval(timer); return; }
+      change(1);
+    }, 2000);
+  });
+
+  /* ---------- เพลง ---------- */
+  let playlist = [], playingId = null, localFiles = [];
+  function savePlaylist(){
+    if (useFirebase) db.ref('playlist').set(playlist);
+    else save('playlist', playlist);
+  }
+  function parseLink(raw){
+    let u; try { u = new URL(raw.trim()); } catch(e){ return null; }
+    const host = u.hostname.replace(/^www\.|^m\.|^music\./, '');
+    if (host === 'youtube.com' || host === 'youtu.be'){
+      let id = null;
+      if (host === 'youtu.be') id = u.pathname.slice(1);
+      else if (u.searchParams.get('v')) id = u.searchParams.get('v');
+      else { const m = u.pathname.match(/\/(shorts|embed|live)\/([\w-]+)/); if (m) id = m[2]; }
+      const listId = u.searchParams.get('list');
+      if (id) return {kind:'YouTube', embed:'https://www.youtube.com/embed/' + id + '?autoplay=1&rel=0', h:220};
+      if (listId) return {kind:'YouTube', embed:'https://www.youtube.com/embed/videoseries?list=' + listId + '&autoplay=1', h:220};
+      return null;
+    }
+    if (host === 'soundcloud.com' || host === 'on.soundcloud.com')
+      return {kind:'SoundCloud', embed:'https://w.soundcloud.com/player/?url=' + encodeURIComponent(u.href) + '&auto_play=true&visual=false', h:166};
+    if (host === 'open.spotify.com'){
+      const m = u.pathname.match(/(track|album|playlist|episode|show)\/([A-Za-z0-9]+)/);
+      if (m) return {kind:'Spotify', embed:'https://open.spotify.com/embed/' + m[1] + '/' + m[2], h:(m[1]==='track'||m[1]==='episode') ? 152 : 352};
+      return null;
+    }
+    if (/\.(mp3|m4a|ogg|wav|aac|flac|opus)$/i.test(u.pathname)) return {kind:'ไฟล์เสียง', audio:u.href};
+    return null;
+  }
+  function play(item){
+    playingId = item.id; $('player').innerHTML = ''; $('err').textContent = '';
+    const p = item.blob ? {audio:item.blob} : parseLink(item.url);
+    if (!p){ $('err').textContent = 'เปิดลิงก์นี้ไม่ได้ ลองลบแล้วเพิ่มใหม่'; return; }
+    if (p.audio){
+      const a = document.createElement('audio');
+      a.controls = true; a.autoplay = true; a.src = p.audio;
+      a.addEventListener('error', () => { $('err').textContent = 'เล่นไฟล์นี้ไม่ได้ ตรวจว่าลิงก์เป็นไฟล์เสียงที่เปิดได้จริง'; });
+      $('player').appendChild(a);
+    } else {
+      const f = document.createElement('iframe');
+      f.src = p.embed; f.height = p.h; f.title = item.name;
+      f.allow = 'autoplay; encrypted-media; clipboard-write; fullscreen; picture-in-picture';
+      $('player').appendChild(f);
+    }
+    $('now').textContent = 'กำลังเล่น: ' + item.name;
+    renderList();
+  }
+  function renderList(){
+    const list = $('list'); list.innerHTML = '';
+    const all = playlist.concat(localFiles);
+    if (!all.length){
+      const li = document.createElement('li'); li.className = 'empty';
+      li.textContent = isOwner ? 'ยังไม่มีเพลง ลองวางลิงก์เพลงโปรดด้านบนดูนะ' : 'ยังไม่มีเพลงในตอนนี้';
+      list.appendChild(li); return;
+    }
+    all.forEach(item => {
+      const li = document.createElement('li');
+      li.className = 'item' + (item.id === playingId ? ' playing' : '');
+      const b = document.createElement('button'); b.className = 'play';
+      b.innerHTML = '<span class="name"></span><span class="src"></span>';
+      b.querySelector('.name').textContent = (item.id === playingId ? '▶ ' : '') + item.name;
+      b.querySelector('.src').textContent = item.kind;
+      b.addEventListener('click', () => play(item));
+      const del = document.createElement('button'); del.className = 'del'; del.textContent = '×';
+      del.setAttribute('aria-label', 'ลบ ' + item.name);
+      del.addEventListener('click', () => {
+        if (item.blob) localFiles = localFiles.filter(x => x.id !== item.id);
+        else { playlist = playlist.filter(x => x.id !== item.id); savePlaylist(); }
+        if (playingId === item.id){ playingId = null; $('player').innerHTML = ''; $('now').textContent = ''; }
+        renderList();
+      });
+      li.append(b); if (isOwner || item.blob) li.append(del); list.appendChild(li);
+    });
+  }
+  function addFromInput(){
+    const raw = $('url').value.trim();
+    if (!raw){ $('err').textContent = 'วางลิงก์เพลงก่อนกดเพิ่ม'; $('url').focus(); return; }
+    const p = parseLink(raw);
+    if (!p){ $('err').textContent = 'ลิงก์นี้ยังไม่รองรับ ใช้ลิงก์ YouTube, SoundCloud, Spotify หรือไฟล์ .mp3'; return; }
+    const item = { id: Date.now().toString(36), url: raw, kind: p.kind,
+      name: $('name').value.trim() || ('เพลงจาก ' + p.kind + ' #' + (playlist.length + 1)) };
+    playlist.push(item); savePlaylist();
+    $('url').value = ''; $('name').value = '';
+    play(item);
+  }
+  $('add').addEventListener('click', addFromInput);
+  $('url').addEventListener('keydown', e => { if (e.key === 'Enter') addFromInput(); });
+  $('file').addEventListener('change', e => {
+    const f = e.target.files[0]; if (!f) return;
+    const item = { id: Date.now().toString(36), blob: URL.createObjectURL(f), kind: 'ไฟล์ในเครื่อง (ไม่บันทึก)', name: f.name.replace(/\.[^.]+$/, '') };
+    localFiles.push(item); e.target.value = ''; play(item);
+  });
+
+  /* ---------- เริ่มทำงาน ---------- */
+  if (useFirebase){
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.database(); auth = firebase.auth();
+
+    // ทุกคนเห็นค่าพลังใจแบบ real-time
+    db.ref('energy').on('value', snap => { energy = clamp(snap.val()); render(); },
+      () => { $('mood').textContent = 'โหลดข้อมูลไม่ได้ ตรวจ Rules ใน Firebase'; });
+
+    $('loginBtn').addEventListener('click', () =>
+      auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e => alert('เข้าสู่ระบบไม่สำเร็จ: ' + e.message)));
+    $('logoutBtn').addEventListener('click', () => auth.signOut());
+
+    // ปุ่มเข้าสู่ระบบโผล่เฉพาะเมื่อเปิดลิงก์ที่ลงท้ายด้วย #owner
+    window.addEventListener('hashchange', () => {
+      if (!auth.currentUser) $('loginBtn').hidden = location.hash !== '#owner';
+    });
+
+    // ทุกคนเห็นเพลย์ลิสต์ แต่เพิ่ม/ลบได้เฉพาะเจ้าของ
+    db.ref('playlist').on('value', snap => {
+      const v = snap.val(); playlist = Array.isArray(v) ? v.filter(Boolean) : (v ? Object.values(v) : []);
+      renderList();
+    });
+
+    auth.onAuthStateChanged(user => {
+      $('loginBtn').hidden = !!user || location.hash !== '#owner';
+      $('logoutBtn').hidden = !user;
+      const owner = !!user && !!OWNER_UID && user.uid === OWNER_UID;
+      $('uidbox').hidden = !user || owner || !!OWNER_UID;
+      if (user) $('uid').textContent = user.uid;
+      setOwnerUI(owner);
+    });
+  } else {
+    // โหมดทดลอง ใช้ได้ก่อนเชื่อม Firebase
+    $('demo').hidden = false;
+    energy = clamp(load('energy', 0));
+    playlist = load('playlist', []); if (!Array.isArray(playlist)) playlist = [];
+    setOwnerUI(true); render(); renderList();
+  }
+})();
+</script>
+</body>
+</html>
