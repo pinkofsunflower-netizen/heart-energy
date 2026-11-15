@@ -191,7 +191,7 @@ const firebaseConfig = {
   appId: "1:297967192302:web:b795fa38f5568a95ab0bff"
 };
 /* ===== ขั้นตอนที่ 4: วาง UID ของคุณตรงนี้ ===== */
-const OWNER_UID = "";
+const OWNER_UID = "bcZVORV2wJMdCAvZ565EaWxijVq1";
 
 (function(){
   const $ = id => document.getElementById(id);
@@ -381,7 +381,7 @@ const OWNER_UID = "";
       $('loginBtn').hidden = !!user || location.hash !== '#owner';
       $('logoutBtn').hidden = !user;
       const owner = !!user && !!OWNER_UID && user.uid === OWNER_UID;
-      $('uidbox').hidden = !user || owner || !!OWNER_UID;
+      $('uidbox').hidden = !user || owner;
       if (user) $('uid').textContent = user.uid;
       setOwnerUI(owner);
     });
