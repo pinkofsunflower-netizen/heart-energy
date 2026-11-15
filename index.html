@@ -103,6 +103,13 @@ button,input{font:inherit;color:inherit}
 .item .src{font-size:.8rem;color:var(--muted)}
 .item .del{background:none;border:0;color:var(--muted);cursor:pointer;font-size:1.2rem;padding:4px 8px;border-radius:8px}
 .item .del:hover{color:var(--danger)}
+.item .edit-btn{background:none;border:0;color:var(--muted);cursor:pointer;font-size:1rem;padding:4px 8px;border-radius:8px}
+.item .edit-btn:hover{color:var(--ink)}
+.item.editing{display:grid;gap:8px;border-color:var(--line);background:var(--bg)}
+.item.editing .field{background:var(--surface);padding:10px 12px}
+.edit-actions{display:flex;gap:6px;flex-wrap:wrap}
+.edit-actions .btn{flex:1;padding:8px 10px;font-size:.95rem}
+.btn:disabled{opacity:.55;cursor:wait}
 .empty{color:var(--muted);font-size:.95rem;padding:8px 0}
 footer{text-align:center;padding:0 20px 24px}
 
@@ -163,7 +170,8 @@ footer{text-align:center;padding:0 20px 24px}
     <p class="hint" id="musicHint">กดชื่อเพลงเพื่อเปิดฟังในแท็บใหม่ หรือเปิดทั้งเพลย์ลิสต์ใน YouTube</p>
     <div class="add" id="addBox" hidden>
       <input class="field" id="url" type="url" inputmode="url" placeholder="https://www.youtube.com/watch?v=..." aria-label="ลิงก์เพลง">
-      <input class="field" id="name" type="text" placeholder="ชื่อเพลง (ไม่ใส่ก็ได้)" aria-label="ชื่อเพลง">
+      <input class="field" id="name" type="text" placeholder="ชื่อเพลง (เว้นว่างไว้ ระบบจะดึงให้)" aria-label="ชื่อเพลง">
+      <input class="field" id="artist" type="text" placeholder="ชื่อศิลปิน (เว้นว่างไว้ ระบบจะดึงให้)" aria-label="ชื่อศิลปิน">
       <div class="add-actions">
         <button class="btn fill" id="add">เพิ่มเพลง</button>
         <label class="btn file-btn">เลือกไฟล์ในเครื่อง<input type="file" id="file" accept="audio/*"></label>
@@ -305,6 +313,85 @@ const OWNER_UID = "bcZVORV2wJMdCAvZ565EaWxijVq1";
     }
     return item.url;
   }
+  /* ดึงชื่อเพลงและศิลปินจากลิงก์ */
+  function cleanInfo(title, author, kind){
+    let artist = String(author || '').replace(/\s*-\s*Topic$/i, '').replace(/VEVO$/i, '').trim();
+    let name = String(title || '')
+      .replace(/\s*[\(\[【][^\)\]】]*(official|mv|m\/v|music video|lyric|lyrics|audio|visuali[sz]er|video|4k|hd|เนื้อเพลง)[^\)\]】]*[\)\]】]/gi, '')
+      .trim();
+    if (kind === 'YouTube'){
+      const m = name.match(/^(.+?)\s+[-–—|]\s+(.+)$/);
+      if (m){
+        const left = m[1].trim(), right = m[2].trim(), low = artist.toLowerCase();
+        const thai = /[\u0E00-\u0E7F]/.test(name);
+        if (low && right.toLowerCase().includes(low)){ name = left; artist = right; }
+        else if (low && left.toLowerCase().includes(low)){ artist = left; name = right; }
+        else if (thai){ name = left; artist = right; }   // เพลงไทยมักเป็น “ชื่อเพลง - ศิลปิน”
+        else { artist = left; name = right; }
+      }
+    }
+    name = name.replace(/\s+(official\s+)?(m\/v|mv|music video|lyric video|audio)$/i, '')
+               .replace(/^["'“‘]+|["'”’]+$/g, '').trim();
+    if (kind === 'SoundCloud'){
+      const s = name.match(/^(.+) by (.+)$/);
+      if (s){ name = s[1].trim(); artist = artist || s[2].trim(); }
+    }
+    return { name, artist };
+  }
+  async function fetchInfo(url){
+    const p = parseLink(url); if (!p) return null;
+    const enc = encodeURIComponent(url), tries = [];
+    if (p.kind === 'YouTube') tries.push('https://www.youtube.com/oembed?format=json&url=' + enc);
+    if (p.kind === 'SoundCloud') tries.push('https://soundcloud.com/oembed?format=json&url=' + enc);
+    if (p.kind === 'Spotify') tries.push('https://open.spotify.com/oembed?url=' + enc);
+    tries.push('https://noembed.com/embed?url=' + enc);
+    for (const t of tries){
+      try {
+        const r = await fetch(t); if (!r.ok) continue;
+        const j = await r.json();
+        if (j && j.title) return cleanInfo(j.title, j.author_name, p.kind);
+      } catch(e){}
+    }
+    return null;
+  }
+
+  let editingId = null;
+  function field(value, ph, label){
+    const i = document.createElement('input');
+    i.className = 'field'; i.type = 'text'; i.value = value || ''; i.placeholder = ph; i.setAttribute('aria-label', label);
+    return i;
+  }
+  function editRow(item){
+    const li = document.createElement('li'); li.className = 'item editing';
+    const n = field(item.name, 'ชื่อเพลง', 'ชื่อเพลง');
+    const ar = field(item.artist, 'ชื่อศิลปิน', 'ชื่อศิลปิน');
+    const u = field(item.url, 'ลิงก์เพลง', 'ลิงก์เพลง'); u.type = 'url';
+    const msg = document.createElement('p'); msg.className = 'error';
+    const act = document.createElement('div'); act.className = 'edit-actions';
+    const saveB = document.createElement('button'); saveB.className = 'btn fill'; saveB.textContent = 'บันทึก';
+    const autoB = document.createElement('button'); autoB.className = 'btn'; autoB.textContent = 'ดึงชื่ออัตโนมัติ';
+    const cancelB = document.createElement('button'); cancelB.className = 'btn'; cancelB.textContent = 'ยกเลิก';
+    autoB.addEventListener('click', async () => {
+      autoB.disabled = true; autoB.textContent = 'กำลังดึง…'; msg.textContent = '';
+      const info = await fetchInfo(u.value);
+      autoB.disabled = false; autoB.textContent = 'ดึงชื่ออัตโนมัติ';
+      if (!info){ msg.textContent = 'ดึงชื่อจากลิงก์นี้ไม่ได้ พิมพ์เองได้เลย'; return; }
+      n.value = info.name; if (info.artist) ar.value = info.artist;
+    });
+    saveB.addEventListener('click', () => {
+      const p = parseLink(u.value);
+      if (!p){ msg.textContent = 'ลิงก์นี้ใช้ไม่ได้ ตรวจลิงก์อีกครั้ง'; return; }
+      const it = playlist.find(x => x.id === item.id); if (!it) return;
+      it.name = n.value.trim() || it.name; it.artist = ar.value.trim(); it.url = u.value.trim(); it.kind = p.kind;
+      editingId = null; savePlaylist(); renderList();
+    });
+    cancelB.addEventListener('click', () => { editingId = null; renderList(); });
+    act.append(saveB, autoB, cancelB);
+    li.append(n, ar, u, act, msg);
+    setTimeout(() => n.focus(), 0);
+    return li;
+  }
+
   function renderList(){
     const list = $('list'); list.innerHTML = '';
     const all = playlist.concat(localFiles);
@@ -317,30 +404,52 @@ const OWNER_UID = "bcZVORV2wJMdCAvZ565EaWxijVq1";
       list.appendChild(li); return;
     }
     all.forEach(item => {
+      if (isOwner && item.id === editingId && !item.blob){ list.appendChild(editRow(item)); return; }
       const li = document.createElement('li'); li.className = 'item';
       const a = document.createElement('a'); a.className = 'play';
       a.href = linkFor(item); a.target = '_blank'; a.rel = 'noopener';
       a.innerHTML = '<span class="name"></span><span class="src"></span>';
       a.querySelector('.name').textContent = item.name;
-      a.querySelector('.src').textContent = item.blob ? 'ไฟล์ในเครื่อง (ไม่บันทึก)' : 'เปิดใน ' + item.kind + ' แท็บใหม่';
-      const del = document.createElement('button'); del.className = 'del'; del.textContent = '×';
-      del.setAttribute('aria-label', 'ลบ ' + item.name);
-      del.addEventListener('click', () => {
-        if (item.blob){ localFiles = localFiles.filter(x => x.id !== item.id); renderList(); }
-        else { playlist = playlist.filter(x => x.id !== item.id); savePlaylist(); }
-      });
-      li.append(a); if (isOwner || item.blob) li.append(del); list.appendChild(li);
+      const where = item.blob ? 'ไฟล์ในเครื่อง (ไม่บันทึก)' : item.kind;
+      a.querySelector('.src').textContent = item.artist ? item.artist + ' • ' + where : where;
+      li.append(a);
+      if (isOwner && !item.blob){
+        const ed = document.createElement('button'); ed.className = 'edit-btn'; ed.textContent = '✎';
+        ed.setAttribute('aria-label', 'แก้ไข ' + item.name);
+        ed.addEventListener('click', () => { editingId = item.id; renderList(); });
+        li.append(ed);
+      }
+      if (isOwner || item.blob){
+        const del = document.createElement('button'); del.className = 'del'; del.textContent = '×';
+        del.setAttribute('aria-label', 'ลบ ' + item.name);
+        del.addEventListener('click', () => {
+          if (!item.blob && !confirm('ลบเพลง “' + item.name + '” ออกจากเพลย์ลิสต์?')) return;
+          if (item.blob){ localFiles = localFiles.filter(x => x.id !== item.id); renderList(); }
+          else { playlist = playlist.filter(x => x.id !== item.id); savePlaylist(); }
+        });
+        li.append(del);
+      }
+      list.appendChild(li);
     });
   }
-  function addFromInput(){
+  async function addFromInput(){
     const raw = $('url').value.trim();
     if (!raw){ $('err').textContent = 'วางลิงก์เพลงก่อนกดเพิ่ม'; $('url').focus(); return; }
     const p = parseLink(raw);
     if (!p){ $('err').textContent = 'ลิงก์นี้ยังไม่รองรับ ใช้ลิงก์ YouTube, SoundCloud, Spotify หรือไฟล์ .mp3'; return; }
+    let name = $('name').value.trim(), artist = $('artist').value.trim();
+    const btn = $('add');
+    if (!name || !artist){
+      btn.disabled = true; btn.textContent = 'กำลังดึงชื่อเพลง…'; $('err').textContent = '';
+      const info = await fetchInfo(raw);
+      btn.disabled = false; btn.textContent = 'เพิ่มเพลง';
+      if (info){ name = name || info.name; artist = artist || info.artist; }
+    }
     const item = { id: Date.now().toString(36), url: raw, kind: p.kind,
-      name: $('name').value.trim() || ('เพลงจาก ' + p.kind + ' #' + (playlist.length + 1)) };
+      name: name || ('เพลงจาก ' + p.kind + ' #' + (playlist.length + 1)), artist: artist || '' };
     playlist.push(item); savePlaylist();
-    $('url').value = ''; $('name').value = ''; $('err').textContent = '';
+    $('url').value = ''; $('name').value = ''; $('artist').value = '';
+    $('err').textContent = item.artist ? '' : 'เพิ่มแล้ว แต่ไม่พบชื่อศิลปิน กด ✎ เพื่อเติมเองได้';
   }
   $('add').addEventListener('click', addFromInput);
   $('url').addEventListener('keydown', e => { if (e.key === 'Enter') addFromInput(); });
