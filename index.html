@@ -278,8 +278,8 @@ const OWNER_UID = "bcZVORV2wJMdCAvZ565EaWxijVq1";
       else if (u.searchParams.get('v')) id = u.searchParams.get('v');
       else { const m = u.pathname.match(/\/(shorts|embed|live)\/([\w-]+)/); if (m) id = m[2]; }
       const listId = u.searchParams.get('list');
-      if (id) return {kind:'YouTube', embed:'https://www.youtube.com/embed/' + id + '?autoplay=1&rel=0', h:220};
-      if (listId) return {kind:'YouTube', embed:'https://www.youtube.com/embed/videoseries?list=' + listId + '&autoplay=1', h:220};
+      if (id) return {kind:'YouTube', yt:{videoId:id}, embed:'https://www.youtube.com/embed/' + id + '?autoplay=1&rel=0&playsinline=1', h:220};
+      if (listId) return {kind:'YouTube', yt:{list:listId}, embed:'https://www.youtube.com/embed/videoseries?list=' + listId + '&autoplay=1&playsinline=1', h:220};
       return null;
     }
     if (host === 'soundcloud.com' || host === 'on.soundcloud.com')
@@ -292,6 +292,58 @@ const OWNER_UID = "bcZVORV2wJMdCAvZ565EaWxijVq1";
     if (/\.(mp3|m4a|ogg|wav|aac|flac|opus)$/i.test(u.pathname)) return {kind:'ไฟล์เสียง', audio:u.href};
     return null;
   }
+  // ตัวเล่น YouTube แบบรู้สถานะ: บอกสาเหตุเมื่อเล่นไม่ได้ และเล่นเพลงถัดไปเมื่อจบ
+  let ytReady = null;
+  function loadYT(){
+    if (ytReady) return ytReady;
+    ytReady = new Promise(res => {
+      if (window.YT && window.YT.Player) return res();
+      window.onYouTubeIframeAPIReady = res;
+      const s = document.createElement('script');
+      s.src = 'https://www.youtube.com/iframe_api';
+      s.onerror = () => res();
+      document.head.appendChild(s);
+      setTimeout(res, 6000);
+    });
+    return ytReady;
+  }
+  function ytErrorText(code){
+    if (code === 101 || code === 150) return 'เจ้าของเพลงนี้ไม่อนุญาตให้เล่นนอก YouTube ลองหาเวอร์ชันอื่น เช่น Lyric video, Audio หรือช่องที่ลงท้ายว่า Topic';
+    if (code === 100) return 'วิดีโอนี้ถูกลบหรือตั้งเป็นส่วนตัว ลองใช้ลิงก์อื่น';
+    if (code === 2) return 'ลิงก์ YouTube ไม่ถูกต้อง ลองคัดลอกลิงก์ใหม่';
+    return 'YouTube เล่นเพลงนี้ไม่ได้ (รหัส ' + code + ') ลองกดเล่นอีกครั้งหรือใช้ลิงก์อื่น';
+  }
+  function playNext(item){
+    const all = playlist.concat(localFiles);
+    const i = all.findIndex(x => x.id === item.id);
+    if (i > -1 && i < all.length - 1 && playingId === item.id) play(all[i + 1]);
+  }
+  function playYouTube(item, p){
+    const holder = document.createElement('div');
+    $('player').appendChild(holder);
+    loadYT().then(() => {
+      if (playingId !== item.id) return;
+      if (!(window.YT && window.YT.Player)){
+        const f = document.createElement('iframe');
+        f.src = p.embed; f.height = p.h; f.title = item.name;
+        f.allow = 'autoplay; encrypted-media; fullscreen; picture-in-picture';
+        holder.replaceWith(f); return;
+      }
+      const vars = {autoplay:1, playsinline:1, rel:0};
+      if (p.yt.list){ vars.listType = 'playlist'; vars.list = p.yt.list; }
+      new YT.Player(holder, {
+        height: String(p.h), width: '100%',
+        videoId: p.yt.videoId || undefined,
+        playerVars: vars,
+        events: {
+          onReady: e => e.target.playVideo(),
+          onStateChange: e => { if (e.data === YT.PlayerState.ENDED && !p.yt.list) playNext(item); },
+          onError: e => { $('err').textContent = ytErrorText(e.data); }
+        }
+      });
+    });
+  }
+
   function play(item){
     playingId = item.id; $('player').innerHTML = ''; $('err').textContent = '';
     const p = item.blob ? {audio:item.blob} : parseLink(item.url);
@@ -300,7 +352,10 @@ const OWNER_UID = "bcZVORV2wJMdCAvZ565EaWxijVq1";
       const a = document.createElement('audio');
       a.controls = true; a.autoplay = true; a.src = p.audio;
       a.addEventListener('error', () => { $('err').textContent = 'เล่นไฟล์นี้ไม่ได้ ตรวจว่าลิงก์เป็นไฟล์เสียงที่เปิดได้จริง'; });
+      a.addEventListener('ended', () => playNext(item));
       $('player').appendChild(a);
+    } else if (p.yt){
+      playYouTube(item, p);
     } else {
       const f = document.createElement('iframe');
       f.src = p.embed; f.height = p.h; f.title = item.name;
