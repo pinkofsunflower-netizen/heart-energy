@@ -110,6 +110,9 @@ button,input{font:inherit;color:inherit}
 .edit-actions{display:flex;gap:6px;flex-wrap:wrap}
 .edit-actions .btn{flex:1;padding:8px 10px;font-size:.95rem}
 .btn:disabled{opacity:.55;cursor:wait}
+.search{padding:10px 14px}
+.more{justify-self:center;font-family:"Mitr",sans-serif}
+.list .item{padding:6px 10px}
 .empty{color:var(--muted);font-size:.95rem;padding:8px 0}
 footer{text-align:center;padding:0 20px 24px}
 
@@ -179,7 +182,9 @@ footer{text-align:center;padding:0 20px 24px}
       <p class="error" id="err" role="alert"></p>
     </div>
     <a class="btn fill open-all" id="openAll" target="_blank" rel="noopener" hidden>เปิดเพลย์ลิสต์ทั้งหมดใน YouTube</a>
+    <input class="field search" id="search" type="search" placeholder="ค้นหาเพลงหรือศิลปิน" aria-label="ค้นหาเพลง" hidden>
     <ul class="list" id="list"></ul>
+    <button class="link more" id="more" hidden></button>
   </section>
 </main>
 
@@ -355,7 +360,8 @@ const OWNER_UID = "bcZVORV2wJMdCAvZ565EaWxijVq1";
     return null;
   }
 
-  let editingId = null;
+  let editingId = null, expanded = false;
+  const LIMIT = 5;
   function field(value, ph, label){
     const i = document.createElement('input');
     i.className = 'field'; i.type = 'text'; i.value = value || ''; i.placeholder = ph; i.setAttribute('aria-label', label);
@@ -394,13 +400,19 @@ const OWNER_UID = "bcZVORV2wJMdCAvZ565EaWxijVq1";
 
   function renderList(){
     const list = $('list'); list.innerHTML = '';
-    const all = playlist.concat(localFiles);
+    const allItems = playlist.concat(localFiles);
+    const q = $('search').value.trim().toLowerCase();
+    $('search').hidden = allItems.length <= LIMIT;
+    const matched = q ? allItems.filter(x => (x.name + ' ' + (x.artist || '')).toLowerCase().includes(q)) : allItems;
+    const all = (q || expanded) ? matched : matched.slice(0, LIMIT);
+    $('more').hidden = !!q || allItems.length <= LIMIT;
+    $('more').textContent = expanded ? 'ย่อรายการ' : 'ดูเพลงทั้งหมด (' + allItems.length + ' เพลง)';
     const allUrl = ytListUrl(playlist.map(ytId).filter(Boolean));
     $('openAll').hidden = !allUrl;
     if (allUrl) $('openAll').href = allUrl;
     if (!all.length){
       const li = document.createElement('li'); li.className = 'empty';
-      li.textContent = isOwner ? 'ยังไม่มีเพลง ลองวางลิงก์เพลงโปรดด้านบนดูนะ' : 'ยังไม่มีเพลงในตอนนี้';
+      li.textContent = q ? 'ไม่พบเพลงที่ค้นหา' : (isOwner ? 'ยังไม่มีเพลง ลองวางลิงก์เพลงโปรดด้านบนดูนะ' : 'ยังไม่มีเพลงในตอนนี้');
       list.appendChild(li); return;
     }
     all.forEach(item => {
@@ -452,6 +464,8 @@ const OWNER_UID = "bcZVORV2wJMdCAvZ565EaWxijVq1";
     $('err').textContent = item.artist ? '' : 'เพิ่มแล้ว แต่ไม่พบชื่อศิลปิน กด ✎ เพื่อเติมเองได้';
   }
   $('add').addEventListener('click', addFromInput);
+  $('search').addEventListener('input', renderList);
+  $('more').addEventListener('click', () => { expanded = !expanded; renderList(); });
   $('url').addEventListener('keydown', e => { if (e.key === 'Enter') addFromInput(); });
   $('file').addEventListener('change', e => {
     const f = e.target.files[0]; if (!f) return;
