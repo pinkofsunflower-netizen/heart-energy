@@ -111,8 +111,18 @@ button,input{font:inherit;color:inherit}
 .edit-actions .btn{flex:1;padding:8px 10px;font-size:.95rem}
 .btn:disabled{opacity:.55;cursor:wait}
 .search{padding:10px 14px}
-.more{justify-self:center;font-family:"Mitr",sans-serif}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
+.tab{flex:none;border:2px solid var(--line);background:var(--bg);border-radius:999px;padding:6px 14px;cursor:pointer;font-family:"Mitr",sans-serif;font-size:.95rem}
+.tab.on{background:var(--fill-top);border-color:var(--fill-deep);color:#3A0D18}
 .list .item{padding:6px 10px}
+.note{width:100%;max-width:420px;background:var(--surface);border:2px solid var(--line);border-radius:20px;padding:16px 18px;text-align:left}
+.note.has{border-color:var(--fill-top)}
+.note-label{display:block;font-family:"Mitr",sans-serif;font-size:.9rem;color:var(--muted);margin-bottom:4px}
+.note.has .note-label{color:var(--ink)}
+.note-text{white-space:pre-wrap;overflow-wrap:anywhere;font-size:1.05rem}
+.note-date{font-size:.8rem;color:var(--muted);margin-top:8px}
+.note-edit{width:100%;max-width:420px;display:grid;gap:8px;text-align:left}
+textarea.field{resize:vertical;min-height:96px;font:inherit;line-height:1.6}
 .empty{color:var(--muted);font-size:.95rem;padding:8px 0}
 footer{text-align:center;padding:0 20px 24px}
 
@@ -152,6 +162,12 @@ footer{text-align:center;padding:0 20px 24px}
     </div>
     <p class="mood" id="mood">กำลังโหลด…</p>
 
+    <div class="note" id="noteCard" aria-live="polite">
+      <p class="note-label" id="noteLabel">คำให้กำลังใจวันนี้</p>
+      <p class="note-text" id="noteText"></p>
+      <p class="note-date" id="noteDate"></p>
+    </div>
+
     <div id="ownerControls" hidden style="display:grid;gap:16px;justify-items:center;width:100%">
       <div class="controls">
         <button class="btn" data-step="-10" aria-label="ลดพลังใจ 10 เปอร์เซ็นต์">−10</button>
@@ -164,6 +180,15 @@ footer{text-align:center;padding:0 20px 24px}
       <div class="row">
         <label class="toggle"><input type="checkbox" id="auto"> เติมเองไปเรื่อยๆ (+1% ทุก 2 วินาที)</label>
         <button class="link" id="reset">เริ่มใหม่</button>
+      </div>
+      <div class="note-edit">
+        <label for="noteInput" class="note-label">วันนี้เจออะไรมา</label>
+        <textarea class="field" id="noteInput" rows="3" maxlength="2000" placeholder="เล่าหรือระบายได้เต็มที่ ถ้าไม่เขียน หน้าเว็บจะแสดงคำให้กำลังใจแทน"></textarea>
+        <div class="edit-actions">
+          <button class="btn fill" id="noteSave">บันทึก</button>
+          <button class="btn" id="noteClear" hidden>ลบของวันนี้</button>
+        </div>
+        <p class="hint" id="noteMsg"></p>
       </div>
     </div>
   </section>
@@ -181,10 +206,10 @@ footer{text-align:center;padding:0 20px 24px}
       </div>
       <p class="error" id="err" role="alert"></p>
     </div>
-    <a class="btn fill open-all" id="openAll" target="_blank" rel="noopener" hidden>เปิดเพลย์ลิสต์ทั้งหมดใน YouTube</a>
     <input class="field search" id="search" type="search" placeholder="ค้นหาเพลงหรือศิลปิน" aria-label="ค้นหาเพลง" hidden>
+    <div class="tabs" id="tabs" role="tablist" aria-label="เลือกเพลย์ลิสต์" hidden></div>
+    <a class="btn fill open-all" id="openAll" target="_blank" rel="noopener" hidden>เปิดเพลย์ลิสต์ใน YouTube</a>
     <ul class="list" id="list"></ul>
-    <button class="link more" id="more" hidden></button>
   </section>
 </main>
 
@@ -307,12 +332,12 @@ const OWNER_UID = "bcZVORV2wJMdCAvZ565EaWxijVq1";
     if (ids.length === 1) return 'https://www.youtube.com/watch?v=' + ids[0];
     return 'https://www.youtube.com/watch_videos?video_ids=' + ids.join(',');
   }
-  // กดเพลง YouTube แล้วเปิดเพลย์ลิสต์โดยเริ่มจากเพลงนั้น ต่อด้วยเพลงที่เหลือ
-  function linkFor(item){
+  // กดเพลง YouTube แล้วเปิดเพลย์ลิสต์ของหน้านั้น โดยเริ่มจากเพลงที่กด
+  function linkFor(item, group){
     if (item.blob) return item.blob;
     const id = ytId(item);
     if (id){
-      const ids = playlist.map(ytId).filter(Boolean);
+      const ids = (group || playlist).map(ytId).filter(Boolean);
       const i = Math.max(0, ids.indexOf(id));
       return ytListUrl(ids.slice(i).concat(ids.slice(0, i)));
     }
@@ -360,8 +385,8 @@ const OWNER_UID = "bcZVORV2wJMdCAvZ565EaWxijVq1";
     return null;
   }
 
-  let editingId = null, expanded = false;
-  const LIMIT = 5;
+  let editingId = null, page = 0;
+  const PER_PAGE = 30;   // จำนวนเพลงต่อหนึ่งเพลย์ลิสต์ (สูงสุด 50)
   function field(value, ph, label){
     const i = document.createElement('input');
     i.className = 'field'; i.type = 'text'; i.value = value || ''; i.placeholder = ph; i.setAttribute('aria-label', label);
@@ -402,27 +427,51 @@ const OWNER_UID = "bcZVORV2wJMdCAvZ565EaWxijVq1";
     const list = $('list'); list.innerHTML = '';
     const allItems = playlist.concat(localFiles);
     const q = $('search').value.trim().toLowerCase();
-    $('search').hidden = allItems.length <= LIMIT;
-    const matched = q ? allItems.filter(x => (x.name + ' ' + (x.artist || '')).toLowerCase().includes(q)) : allItems;
-    const all = (q || expanded) ? matched : matched.slice(0, LIMIT);
-    $('more').hidden = !!q || allItems.length <= LIMIT;
-    $('more').textContent = expanded ? 'ย่อรายการ' : 'ดูเพลงทั้งหมด (' + allItems.length + ' เพลง)';
-    const allUrl = ytListUrl(playlist.map(ytId).filter(Boolean));
-    $('openAll').hidden = !allUrl;
-    if (allUrl) $('openAll').href = allUrl;
-    if (!all.length){
+    $('search').hidden = allItems.length <= 10;
+
+    // แบ่งเป็นเพลย์ลิสต์ละ PER_PAGE เพลง เต็มแล้วขึ้นเพลย์ลิสต์ใหม่ให้เอง
+    const pages = [];
+    for (let i = 0; i < allItems.length; i += PER_PAGE) pages.push(allItems.slice(i, i + PER_PAGE));
+    page = Math.min(page, Math.max(0, pages.length - 1));
+
+    const tabs = $('tabs'); tabs.innerHTML = '';
+    tabs.hidden = !!q || pages.length <= 1;
+    pages.forEach((pg, i) => {
+      const b = document.createElement('button');
+      b.className = 'tab' + (i === page ? ' on' : '');
+      b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', String(i === page));
+      b.textContent = 'เพลย์ลิสต์ ' + (i + 1);
+      b.addEventListener('click', () => { page = i; editingId = null; renderList(); });
+      tabs.appendChild(b);
+    });
+    const on = tabs.querySelector('.on'); if (on && !tabs.hidden) on.scrollIntoView({block:'nearest', inline:'nearest'});
+
+    const shown = q
+      ? allItems.filter(x => (x.name + ' ' + (x.artist || '')).toLowerCase().includes(q))
+          .map(item => ({ item, group: pages.findIndex(pg => pg.includes(item)) }))
+      : (pages[page] || []).map(item => ({ item, group: page }));
+
+    const pageUrl = q ? null : ytListUrl((pages[page] || []).map(ytId).filter(Boolean));
+    $('openAll').hidden = !pageUrl;
+    if (pageUrl){
+      $('openAll').href = pageUrl;
+      $('openAll').textContent = pages.length > 1 ? 'เปิดเพลย์ลิสต์ ' + (page + 1) + ' ใน YouTube' : 'เปิดเพลย์ลิสต์ใน YouTube';
+    }
+
+    if (!shown.length){
       const li = document.createElement('li'); li.className = 'empty';
       li.textContent = q ? 'ไม่พบเพลงที่ค้นหา' : (isOwner ? 'ยังไม่มีเพลง ลองวางลิงก์เพลงโปรดด้านบนดูนะ' : 'ยังไม่มีเพลงในตอนนี้');
       list.appendChild(li); return;
     }
-    all.forEach(item => {
+    shown.forEach(({ item, group }) => {
       if (isOwner && item.id === editingId && !item.blob){ list.appendChild(editRow(item)); return; }
       const li = document.createElement('li'); li.className = 'item';
       const a = document.createElement('a'); a.className = 'play';
-      a.href = linkFor(item); a.target = '_blank'; a.rel = 'noopener';
+      a.href = linkFor(item, pages[group]); a.target = '_blank'; a.rel = 'noopener';
       a.innerHTML = '<span class="name"></span><span class="src"></span>';
       a.querySelector('.name').textContent = item.name;
-      const where = item.blob ? 'ไฟล์ในเครื่อง (ไม่บันทึก)' : item.kind;
+      let where = item.blob ? 'ไฟล์ในเครื่อง (ไม่บันทึก)' : item.kind;
+      if (q && pages.length > 1) where += ' • เพลย์ลิสต์ ' + (group + 1);
       a.querySelector('.src').textContent = item.artist ? item.artist + ' • ' + where : where;
       li.append(a);
       if (isOwner && !item.blob){
@@ -459,13 +508,14 @@ const OWNER_UID = "bcZVORV2wJMdCAvZ565EaWxijVq1";
     }
     const item = { id: Date.now().toString(36), url: raw, kind: p.kind,
       name: name || ('เพลงจาก ' + p.kind + ' #' + (playlist.length + 1)), artist: artist || '' };
-    playlist.push(item); savePlaylist();
+    playlist.push(item);
+    page = Math.floor((playlist.length - 1) / PER_PAGE);
+    savePlaylist();
     $('url').value = ''; $('name').value = ''; $('artist').value = '';
     $('err').textContent = item.artist ? '' : 'เพิ่มแล้ว แต่ไม่พบชื่อศิลปิน กด ✎ เพื่อเติมเองได้';
   }
   $('add').addEventListener('click', addFromInput);
   $('search').addEventListener('input', renderList);
-  $('more').addEventListener('click', () => { expanded = !expanded; renderList(); });
   $('url').addEventListener('keydown', e => { if (e.key === 'Enter') addFromInput(); });
   $('file').addEventListener('change', e => {
     const f = e.target.files[0]; if (!f) return;
@@ -473,10 +523,88 @@ const OWNER_UID = "bcZVORV2wJMdCAvZ565EaWxijVq1";
     e.target.value = ''; renderList();
   });
 
+  /* ---------- เรื่องวันนี้ ---------- */
+  const QUOTES = [
+    'วันนี้ไม่ต้องเก่งทุกเรื่องก็ได้ แค่ผ่านมันไปได้ก็เก่งแล้ว',
+    'ค่อยๆ ไปทีละก้าว ช้าแต่ไม่หยุด ก็ยังถึงอยู่ดี',
+    'เหนื่อยก็พักได้ แต่อย่าลืมว่าตัวเองมาไกลแค่ไหนแล้ว',
+    'ทุกวันที่ยากผ่านมาได้หมด วันนี้ก็เหมือนกัน',
+    'ใจดีกับตัวเองบ้างนะ เหมือนที่ใจดีกับคนอื่นเสมอ',
+    'ไม่เป็นไรถ้าวันนี้ยังไม่ดีที่สุด พรุ่งนี้ยังมีที่ว่างให้เริ่มใหม่',
+    'ดื่มน้ำ หายใจลึกๆ แล้วยิ้มให้ตัวเองหนึ่งครั้ง',
+    'เรื่องเล็กๆ ที่ทำได้วันนี้ คือก้าวใหญ่ของวันหน้า',
+    'ฟ้าหลังฝนสวยเสมอ รอหน่อยนะ',
+    'ภูมิใจในตัวเองได้เลย ที่ยังพยายามอยู่ทุกวัน',
+    'ไม่ต้องรีบ ดอกไม้แต่ละดอกก็บานไม่พร้อมกัน',
+    'วันนี้ขอให้เจอเรื่องน่ารักๆ สักเรื่องนะ'
+  ];
+  const todayKey = () => {
+    try { return new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Bangkok', year:'numeric', month:'2-digit', day:'2-digit'}).format(new Date()); }
+    catch(e){ return new Date().toISOString().slice(0, 10); }
+  };
+  const thaiDate = key => {
+    try { return new Date(key + 'T12:00:00+07:00').toLocaleDateString('th-TH', {weekday:'long', day:'numeric', month:'long', year:'numeric', timeZone:'Asia/Bangkok'}); }
+    catch(e){ return key; }
+  };
+  let noteDay = todayKey(), noteText = '', noteRef = null;
+  function renderNote(){
+    const has = !!noteText.trim();
+    $('noteCard').classList.toggle('has', has);
+    $('noteLabel').textContent = has ? 'วันนี้เจออะไรมา' : 'คำให้กำลังใจวันนี้';
+    if (has) $('noteText').textContent = noteText;
+    else {
+      let n = 0; for (const c of noteDay) n = (n * 31 + c.charCodeAt(0)) % 100003;
+      $('noteText').textContent = QUOTES[n % QUOTES.length];
+    }
+    $('noteDate').textContent = thaiDate(noteDay);
+    if (document.activeElement !== $('noteInput')) $('noteInput').value = noteText;
+    $('noteClear').hidden = !has;
+  }
+  function saveNote(text){
+    text = String(text).trim().slice(0, 2000);
+    if (useFirebase){
+      const ref = db.ref('notes/' + noteDay);
+      return text ? ref.set({ text, updatedAt: Date.now() }) : ref.remove();
+    }
+    const all = load('notes', {}) || {};
+    if (text) all[noteDay] = { text }; else delete all[noteDay];
+    save('notes', all); noteText = text; renderNote();
+    return Promise.resolve();
+  }
+  function watchNote(){
+    if (useFirebase){
+      if (noteRef) noteRef.off();
+      noteRef = db.ref('notes/' + noteDay);
+      noteRef.on('value', s => { const v = s.val(); noteText = (v && v.text) || ''; renderNote(); },
+        () => { noteText = ''; renderNote(); });
+    } else {
+      const all = load('notes', {}) || {};
+      noteText = (all[noteDay] && all[noteDay].text) || ''; renderNote();
+    }
+  }
+  $('noteSave').addEventListener('click', () => {
+    if (!isOwner) return;
+    $('noteMsg').textContent = 'กำลังบันทึก…';
+    saveNote($('noteInput').value).then(
+      () => { $('noteMsg').textContent = $('noteInput').value.trim() ? 'บันทึกแล้ว ทุกคนจะเห็นข้อความนี้' : 'ไม่มีข้อความ จะแสดงคำให้กำลังใจแทน'; },
+      () => { $('noteMsg').textContent = 'บันทึกไม่สำเร็จ ตรวจ Rules ของ notes ใน Firebase'; });
+  });
+  $('noteClear').addEventListener('click', () => {
+    if (!isOwner || !confirm('ลบข้อความของวันนี้?')) return;
+    $('noteInput').value = '';
+    saveNote('').then(() => { $('noteMsg').textContent = 'ลบแล้ว จะแสดงคำให้กำลังใจแทน'; });
+  });
+  // ขึ้นวันใหม่ (เวลาไทย) แล้วเปลี่ยนไปดูข้อความของวันใหม่เอง
+  setInterval(() => {
+    const k = todayKey();
+    if (k !== noteDay){ noteDay = k; noteText = ''; $('noteInput').value = ''; $('noteMsg').textContent = ''; watchNote(); }
+  }, 60000);
+
   /* ---------- เริ่มทำงาน ---------- */
   if (useFirebase){
     firebase.initializeApp(firebaseConfig);
     db = firebase.database(); auth = firebase.auth();
+    watchNote();
 
     // ทุกคนเห็นค่าพลังใจแบบ real-time
     db.ref('energy').on('value', snap => { energy = clamp(snap.val()); render(); },
@@ -510,7 +638,7 @@ const OWNER_UID = "bcZVORV2wJMdCAvZ565EaWxijVq1";
     $('demo').hidden = false;
     energy = clamp(load('energy', 0));
     playlist = load('playlist', []); if (!Array.isArray(playlist)) playlist = [];
-    setOwnerUI(true); render(); renderList();
+    setOwnerUI(true); render(); renderList(); watchNote();
   }
 })();
 </script>
