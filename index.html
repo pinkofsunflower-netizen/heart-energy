@@ -115,6 +115,17 @@ button,input{font:inherit;color:inherit}
 .item .meta{min-width:0;flex:1}
 .thumb{width:72px;height:54px;border-radius:10px;object-fit:cover;flex:none;background:var(--bg)}
 .thumb.ph{display:grid;place-content:center;font-size:1.4rem;color:var(--fill-deep)}
+.list.cards{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.list.cards .empty,.list.cards .editing{grid-column:1/-1}
+.item.card{display:block;position:relative;padding:0;border:2px solid var(--line);border-radius:16px;overflow:hidden;background:var(--bg);transition:transform .15s,border-color .15s}
+.item.card:hover{border-color:var(--fill-top);transform:translateY(-2px)}
+.card .play{display:block;padding:0}
+.card .cover{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:var(--line)}
+.card .cover.ph{display:grid;place-content:center;font-size:2rem;color:var(--fill-deep)}
+.card .meta{display:block;padding:8px 10px 10px}
+.card .name{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.4}
+.card .tools{position:absolute;top:6px;right:6px;display:flex;gap:4px}
+.card .tools button{background:var(--surface);border-radius:999px;width:34px;height:34px;padding:0;box-shadow:0 1px 4px rgba(0,0,0,.18)}
 .legacy{border:2px dashed var(--line);border-radius:14px;padding:10px 14px;font-size:.9rem;color:var(--muted)}
 .tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
 .tab{flex:none;border:2px solid var(--line);background:var(--bg);border-radius:999px;padding:6px 14px;cursor:pointer;font-family:"Mitr",sans-serif;font-size:.95rem}
@@ -212,7 +223,7 @@ footer{text-align:center;padding:0 20px 24px}
       <button class="link" id="clearLegacy">ลบเพลงเดิมทั้งหมด</button>
     </div>
     <input class="field search" id="search" type="search" placeholder="ค้นหาเพลย์ลิสต์" aria-label="ค้นหาเพลย์ลิสต์" hidden>
-    <ul class="list" id="list"></ul>
+    <ul class="list cards" id="list"></ul>
   </section>
 </main>
 
@@ -338,37 +349,67 @@ const OWNER_UID = "bcZVORV2wJMdCAvZ565EaWxijVq1";
     i.className = 'field'; i.type = 'text'; i.value = value || ''; i.placeholder = ph; i.setAttribute('aria-label', label);
     return i;
   }
+  // แปลงลิงก์รูปปก: วางลิงก์รูปภาพ หรือวางลิงก์คลิป YouTube เพื่อใช้ภาพปกของคลิปนั้น
+  function coverFrom(raw){
+    raw = String(raw || '').trim(); if (!raw) return '';
+    let u; try { u = new URL(raw); } catch(e){ return null; }
+    const host = u.hostname.replace(/^www\.|^m\.|^music\./, '');
+    if (host === 'youtube.com' || host === 'youtu.be'){
+      let id = host === 'youtu.be' ? u.pathname.slice(1) : u.searchParams.get('v');
+      if (!id){ const m = u.pathname.match(/\/(shorts|embed|live)\/([\w-]+)/); if (m) id = m[2]; }
+      return id ? 'https://i.ytimg.com/vi/' + id + '/hqdefault.jpg' : null;
+    }
+    return /^https?:$/.test(u.protocol) ? u.href : null;
+  }
   function editRow(item){
     const li = document.createElement('li'); li.className = 'item editing';
     const n = field(item.name, 'ชื่อเพลย์ลิสต์', 'ชื่อเพลย์ลิสต์');
     const u = field(item.url, 'ลิงก์เพลย์ลิสต์', 'ลิงก์เพลย์ลิสต์'); u.type = 'url';
+    const c = field(item.thumb, 'ลิงก์รูปปก หรือลิงก์คลิปที่อยากใช้เป็นปก (ไม่ใส่ก็ได้)', 'ลิงก์รูปปก'); c.type = 'url';
     const msg = document.createElement('p'); msg.className = 'error';
     const act = document.createElement('div'); act.className = 'edit-actions';
     const saveB = document.createElement('button'); saveB.className = 'btn fill'; saveB.textContent = 'บันทึก';
-    const autoB = document.createElement('button'); autoB.className = 'btn'; autoB.textContent = 'ดึงชื่ออัตโนมัติ';
+    const autoB = document.createElement('button'); autoB.className = 'btn'; autoB.textContent = 'ดึงชื่อและปกอัตโนมัติ';
     const cancelB = document.createElement('button'); cancelB.className = 'btn'; cancelB.textContent = 'ยกเลิก';
     autoB.addEventListener('click', async () => {
       const p = parseList(u.value); if (p.error){ msg.textContent = p.error; return; }
       autoB.disabled = true; autoB.textContent = 'กำลังดึง…'; msg.textContent = '';
       const info = await fetchListInfo(p.url);
-      autoB.disabled = false; autoB.textContent = 'ดึงชื่ออัตโนมัติ';
-      if (!info){ msg.textContent = 'ดึงชื่อไม่ได้ เพลย์ลิสต์อาจตั้งเป็นส่วนตัว พิมพ์ชื่อเองได้เลย'; return; }
-      n.value = info.name;
-      const it = playlist.find(x => x.id === item.id); if (it){ it.by = info.by; it.thumb = info.thumb; }
+      autoB.disabled = false; autoB.textContent = 'ดึงชื่อและปกอัตโนมัติ';
+      if (!info){ msg.textContent = 'ดึงข้อมูลไม่ได้ เพลย์ลิสต์อาจตั้งเป็นส่วนตัว ใส่ชื่อและปกเองได้เลย'; return; }
+      n.value = info.name; if (info.thumb) c.value = info.thumb;
+      const it = playlist.find(x => x.id === item.id); if (it) it.by = info.by;
     });
     saveB.addEventListener('click', () => {
       const p = parseList(u.value); if (p.error){ msg.textContent = p.error; return; }
+      const cover = coverFrom(c.value);
+      if (cover === null){ msg.textContent = 'ลิงก์รูปปกไม่ถูกต้อง'; return; }
       const it = playlist.find(x => x.id === item.id); if (!it) return;
-      if (it.listId !== p.listId){ it.thumb = ''; it.by = ''; }
-      it.name = n.value.trim() || it.name; it.listId = p.listId; it.url = p.url;
+      if (it.listId !== p.listId) it.by = '';
+      it.name = n.value.trim() || it.name; it.listId = p.listId; it.url = p.url; it.thumb = cover;
       editingId = null; savePlaylist(); renderList();
     });
     cancelB.addEventListener('click', () => { editingId = null; renderList(); });
     act.append(saveB, autoB, cancelB);
-    li.append(n, u, act, msg);
+    li.append(n, u, c, act, msg);
     setTimeout(() => n.focus(), 0);
     return li;
   }
+
+  // เพลย์ลิสต์ที่ยังไม่มีปก ลองดึงปกให้อัตโนมัติ (ทำตอนเจ้าของล็อกอินอยู่)
+  const triedCover = new Set();
+  async function fillMissingCovers(){
+    for (const it of playlist.filter(isList)){
+      if (it.thumb || triedCover.has(it.id)) continue;
+      triedCover.add(it.id);
+      const info = await fetchListInfo(it.url);
+      if (info && info.thumb && isOwner){
+        const cur = playlist.find(x => x.id === it.id);
+        if (cur && !cur.thumb){ cur.thumb = info.thumb; if (!cur.by) cur.by = info.by; savePlaylist(); }
+      }
+    }
+  }
+
   function renderList(){
     const list = $('list'); list.innerHTML = '';
     const lists = playlist.filter(isList);
@@ -378,6 +419,7 @@ const OWNER_UID = "bcZVORV2wJMdCAvZ565EaWxijVq1";
     const q = $('search').value.trim().toLowerCase();
     $('search').hidden = lists.length <= 10;
     const shown = q ? lists.filter(x => (x.name + ' ' + (x.by || '')).toLowerCase().includes(q)) : lists;
+    if (isOwner) fillMissingCovers();
     if (!shown.length){
       const li = document.createElement('li'); li.className = 'empty';
       li.textContent = q ? 'ไม่พบเพลย์ลิสต์ที่ค้นหา'
@@ -386,20 +428,22 @@ const OWNER_UID = "bcZVORV2wJMdCAvZ565EaWxijVq1";
     }
     shown.forEach(item => {
       if (isOwner && item.id === editingId){ list.appendChild(editRow(item)); return; }
-      const li = document.createElement('li'); li.className = 'item';
+      const li = document.createElement('li'); li.className = 'item card';
       const a = document.createElement('a'); a.className = 'play';
       a.href = item.url; a.target = '_blank'; a.rel = 'noopener';
-      let thumb;
+      const ph = () => { const s = document.createElement('span'); s.className = 'cover ph'; s.textContent = '♪'; return s; };
+      let cover;
       if (item.thumb){
-        thumb = document.createElement('img'); thumb.className = 'thumb'; thumb.src = item.thumb; thumb.alt = ''; thumb.loading = 'lazy';
-        thumb.addEventListener('error', () => { const s = document.createElement('span'); s.className = 'thumb ph'; s.textContent = '♪'; thumb.replaceWith(s); });
-      } else { thumb = document.createElement('span'); thumb.className = 'thumb ph'; thumb.textContent = '♪'; }
+        cover = document.createElement('img'); cover.className = 'cover'; cover.src = item.thumb; cover.alt = ''; cover.loading = 'lazy';
+        cover.addEventListener('error', () => cover.replaceWith(ph()));
+      } else cover = ph();
       const meta = document.createElement('span'); meta.className = 'meta';
       meta.innerHTML = '<span class="name"></span><span class="src"></span>';
       meta.querySelector('.name').textContent = item.name;
-      meta.querySelector('.src').textContent = (item.by ? item.by + ' • ' : '') + 'เพลย์ลิสต์ YouTube';
-      a.append(thumb, meta); li.append(a);
+      meta.querySelector('.src').textContent = item.by || 'เพลย์ลิสต์ YouTube';
+      a.append(cover, meta); li.append(a);
       if (isOwner){
+        const tools = document.createElement('div'); tools.className = 'tools';
         const ed = document.createElement('button'); ed.className = 'edit-btn'; ed.textContent = '✎';
         ed.setAttribute('aria-label', 'แก้ไข ' + item.name);
         ed.addEventListener('click', () => { editingId = item.id; renderList(); });
@@ -409,7 +453,7 @@ const OWNER_UID = "bcZVORV2wJMdCAvZ565EaWxijVq1";
           if (!confirm('ลบเพลย์ลิสต์ “' + item.name + '” ออกจากหน้าเว็บ? (เพลย์ลิสต์ใน YouTube ยังอยู่)')) return;
           playlist = playlist.filter(x => x.id !== item.id); savePlaylist();
         });
-        li.append(ed, del);
+        tools.append(ed, del); li.append(tools);
       }
       list.appendChild(li);
     });
